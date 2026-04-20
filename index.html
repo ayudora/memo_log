@@ -3,65 +3,107 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SOU 制作ロガー（ライブカメラ版）</title>
+    <title>SOU - Production Log -</title>
     <style>
-        body { font-family: sans-serif; text-align: center; background-color: #faf9f8; color: #4a4a4a; margin: 0; padding: 20px; }
-        /* 映像を映す枠 */
-        #video-container { position: relative; width: 100%; max-width: 400px; margin: 0 auto; border-radius: 15px; overflow: hidden; background: #000; }
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; text-align: center; background-color: #faf9f8; color: #5a5a5a; margin: 0; padding: 20px; line-height: 1.6; }
+        h3 { font-weight: normal; letter-spacing: 0.1em; color: #8c847c; }
+        
+        /* ライブカメラエリア */
+        #video-container { position: relative; width: 100%; max-width: 400px; margin: 0 auto 20px; border-radius: 12px; overflow: hidden; background: #e0ddd9; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
         video { width: 100%; display: block; }
-        /* ボタンのデザイン */
-        .btn { background-color: #d1cbc4; border: none; padding: 15px 30px; border-radius: 30px; color: white; font-size: 16px; margin-top: 20px; cursor: pointer; }
-        .btn-shutter { background-color: #a89f94; }
-        /* 撮った写真の表示 */
-        #photo-canvas { width: 100%; max-width: 400px; margin-top: 20px; border-radius: 15px; display: none; }
+        
+        /* 入力エリア */
+        #memo-area { width: 100%; max-width: 400px; margin: 0 auto; display: none; }
+        textarea { width: 100%; height: 80px; border: 1px solid #d1cbc4; border-radius: 8px; padding: 10px; box-sizing: border-box; font-size: 14px; margin-bottom: 10px; background-color: #fff; }
+        
+        /* ボタン */
+        .btn { border: none; padding: 12px 24px; border-radius: 25px; font-size: 15px; cursor: pointer; transition: 0.3s; margin: 5px; }
+        .btn-main { background-color: #d1cbc4; color: white; }
+        .btn-shutter { background-color: #a89f94; color: white; }
+        .btn-save { background-color: #8c847c; color: white; }
+        
+        /* ログリスト */
+        #log-list { max-width: 400px; margin: 40px auto 0; text-align: left; }
+        .log-item { background: white; padding: 15px; border-radius: 10px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
+        .log-item img { width: 100%; border-radius: 6px; margin-bottom: 10px; }
+        .log-time { font-size: 12px; color: #a0a0a0; }
+        .log-text { font-size: 14px; white-space: pre-wrap; }
     </style>
 </head>
 <body>
 
-    <h3>制作ログ撮影</h3>
+    <h3>SOU - Production Log -</h3>
 
     <div id="video-container">
         <video id="camera-view" autoplay playsinline></video>
     </div>
 
-    <button id="start-btn" class="btn">カメラを起動</button>
-    <button id="shutter-btn" class="btn btn-shutter" style="display:none;">シャッターを切る</button>
+    <button id="start-btn" class="btn btn-main">カメラを起動</button>
+    <button id="shutter-btn" class="btn btn-shutter" style="display:none;">撮影する</button>
 
-    <canvas id="photo-canvas"></canvas>
+    <div id="memo-area">
+        <canvas id="photo-canvas" style="display:none;"></canvas>
+        <img id="preview-img" style="width:100%; border-radius:8px; margin-bottom:10px;">
+        <textarea id="memo-input" placeholder="今のこだわりや、気づいたことをメモ..."></textarea>
+        <button id="save-btn" class="btn btn-save">ログを保存</button>
+        <button onclick="location.reload()" class="btn">キャンセル</button>
+    </div>
+
+    <div id="log-list">
+        <h4 style="border-bottom: 1px solid #d1cbc4; padding-bottom: 5px;">最近のあしあと</h4>
+    </div>
 
     <script>
         const video = document.getElementById('camera-view');
         const canvas = document.getElementById('photo-canvas');
+        const previewImg = document.getElementById('preview-img');
+        const memoArea = document.getElementById('memo-area');
         const startBtn = document.getElementById('start-btn');
         const shutterBtn = document.getElementById('shutter-btn');
+        const saveBtn = document.getElementById('save-btn');
+        const logList = document.getElementById('log-list');
 
-        // 1. カメラを起動する
+        // カメラ起動
         startBtn.onclick = async () => {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: "environment" }, // 背面カメラ
-                    audio: false 
-                });
-                video.srcObject = stream;
-                startBtn.style.display = 'none';
-                shutterBtn.style.display = 'inline-block';
-            } catch (err) {
-                alert("カメラの起動に失敗しました。設定でカメラ権限を許可してください。");
-            }
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+            video.srcObject = stream;
+            startBtn.style.display = 'none';
+            shutterBtn.style.display = 'inline-block';
         };
 
-        // 2. シャッターを切る
+        // 撮影
         shutterBtn.onclick = () => {
-            const context = canvas.getContext('2d');
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
-            // 映像の一瞬をキャンバスにコピー
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            previewImg.src = canvas.toDataURL('image/png');
             
-            canvas.style.display = 'block';
-            video.style.display = 'none'; // プレビューのために映像を隠す
-            shutterBtn.innerText = "撮り直す";
-            shutterBtn.onclick = () => location.reload(); // 簡易的な撮り直し
+            document.getElementById('video-container').style.display = 'none';
+            shutterBtn.style.display = 'none';
+            memoArea.style.display = 'block';
+        };
+
+        // ログ保存
+        saveBtn.onclick = () => {
+            const memoText = document.getElementById('memo-input').value;
+            const time = new Date().toLocaleTimeString();
+            
+            // ログ要素を作成
+            const item = document.createElement('div');
+            item.className = 'log-item';
+            item.innerHTML = `
+                <img src="${previewImg.src}">
+                <div class="log-time">${time}</div>
+                <div class="log-text">${memoText}</div>
+            `;
+            
+            logList.prepend(item); // リストの先頭に追加
+            
+            // 入力をリセットしてカメラに戻る
+            document.getElementById('memo-input').value = '';
+            memoArea.style.display = 'none';
+            document.getElementById('video-container').style.display = 'block';
+            shutterBtn.style.display = 'inline-block';
         };
     </script>
 </body>
