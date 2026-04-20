@@ -107,26 +107,29 @@
             ctx.fillStyle = "#ffffff";
             ctx.fillRect(0, 0, canvasSize, canvasSize);
 
-            // 2. 写真を描画（中央配置）
-            const xPadding = (canvasSize - imgW) / 2;
-            const yPadding = (canvasSize - imgH) / 2 - (canvasSize * 0.05); // 少しだけ上に寄せる
-            ctx.drawImage(video, 0, (video.videoHeight - imgH) / 2, imgW, imgH, xPadding, yPadding, imgW, imgH);
+            // 【レイアウト調整】「写真は上に置く（下余白広め）」
+            const xPadding = (canvasSize - imgW) / 2; // 左右の枠
+            const yPaddingTop = canvasSize * 0.08; // 上の枠 (例えば8%くらいで固定)
+            const imgTop = yPaddingTop; // 写真の上の位置
 
-            // 3. 文字を描画
+            // 2. 写真を描画（上に配置）
+            ctx.drawImage(video, 0, (video.videoHeight - imgH) / 2, imgW, imgH, xPadding, imgTop, imgW, imgH);
+
+            // 3. 文字を描画（下の余白）
             ctx.fillStyle = "#5a5a5a";
             ctx.font = `${canvasSize * 0.04}px sans-serif`;
             
-            // メモ（写真の下に配置）
-            ctx.fillText(memoText, xPadding * 1.2, yPadding + imgH + (canvasSize * 0.08));
+            // メモの位置 (写真の下にゆったりと配置)
+            ctx.fillText(memoText, xPadding * 1.2, imgTop + imgH + (canvasSize * 0.12));
             
-            // 日時（さらにその下に控えめに）
+            // 日時の位置 (さらにその下に控えめに)
             ctx.fillStyle = "#b0b0b0";
             ctx.font = `${canvasSize * 0.03}px sans-serif`;
-            ctx.fillText(fullDateStr, xPadding * 1.2, yPadding + imgH + (canvasSize * 0.15));
+            ctx.fillText(fullDateStr, xPadding * 1.2, canvasSize - (canvasSize * 0.1));
 
             const finalImage = exportCanvas.toDataURL('image/png');
             const link = document.createElement('a');
-            link.download = `SOU_Log_${new Date().getTime()}.png`;
+            link.download = `Log_${new Date().getTime()}.png`;
             link.href = finalImage;
             link.click();
 
