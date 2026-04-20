@@ -7,27 +7,17 @@
     <style>
         body { font-family: 'Helvetica Neue', Arial, sans-serif; text-align: center; background-color: #faf9f8; color: #5a5a5a; margin: 0; padding: 20px; line-height: 1.6; }
         h3 { font-weight: normal; letter-spacing: 0.1em; color: #8c847c; }
-        
-        /* ライブカメラエリア */
-        #video-container { position: relative; width: 100%; max-width: 400px; margin: 0 auto 20px; border-radius: 12px; overflow: hidden; background: #e0ddd9; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        #video-container { position: relative; width: 100%; max-width: 400px; margin: 0 auto 20px; border-radius: 12px; overflow: hidden; background: #e0ddd9; }
         video { width: 100%; display: block; }
-        
-        /* 入力エリア */
         #memo-area { width: 100%; max-width: 400px; margin: 0 auto; display: none; }
-        textarea { width: 100%; height: 80px; border: 1px solid #d1cbc4; border-radius: 8px; padding: 10px; box-sizing: border-box; font-size: 14px; margin-bottom: 10px; background-color: #fff; }
-        
-        /* ボタン */
-        .btn { border: none; padding: 12px 24px; border-radius: 25px; font-size: 15px; cursor: pointer; transition: 0.3s; margin: 5px; }
+        textarea { width: 100%; height: 80px; border: 1px solid #d1cbc4; border-radius: 8px; padding: 10px; box-sizing: border-box; font-size: 14px; margin-bottom: 10px; }
+        .btn { border: none; padding: 12px 24px; border-radius: 25px; font-size: 15px; cursor: pointer; margin: 5px; }
         .btn-main { background-color: #d1cbc4; color: white; }
         .btn-shutter { background-color: #a89f94; color: white; }
-        .btn-save { background-color: #8c847c; color: white; }
-        
-        /* ログリスト */
-        #log-list { max-width: 400px; margin: 40px auto 0; text-align: left; }
+        .btn-copy { background-color: #8c847c; color: white; width: 100%; max-width: 400px; margin-top: 20px; display: none; }
+        #log-list { max-width: 400px; margin: 30px auto; text-align: left; }
         .log-item { background: white; padding: 15px; border-radius: 10px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
-        .log-item img { width: 100%; border-radius: 6px; margin-bottom: 10px; }
-        .log-time { font-size: 12px; color: #a0a0a0; }
-        .log-text { font-size: 14px; white-space: pre-wrap; }
+        .log-item img { width: 100%; border-radius: 6px; }
     </style>
 </head>
 <body>
@@ -44,14 +34,14 @@
     <div id="memo-area">
         <canvas id="photo-canvas" style="display:none;"></canvas>
         <img id="preview-img" style="width:100%; border-radius:8px; margin-bottom:10px;">
-        <textarea id="memo-input" placeholder="今のこだわりや、気づいたことをメモ..."></textarea>
-        <button id="save-btn" class="btn btn-save">ログを保存</button>
-        <button onclick="location.reload()" class="btn">キャンセル</button>
+        <textarea id="memo-input" placeholder="今のこだわりや気づきをメモ..."></textarea>
+        <button id="save-btn" class="btn btn-main">ログを保存</button>
+        <button onclick="location.reload()" class="btn">やり直し</button>
     </div>
 
-    <div id="log-list">
-        <h4 style="border-bottom: 1px solid #d1cbc4; padding-bottom: 5px;">最近のあしあと</h4>
-    </div>
+    <button id="copy-btn" class="btn btn-copy">すべてのログをnote用にコピー</button>
+
+    <div id="log-list"></div>
 
     <script>
         const video = document.getElementById('camera-view');
@@ -61,9 +51,11 @@
         const startBtn = document.getElementById('start-btn');
         const shutterBtn = document.getElementById('shutter-btn');
         const saveBtn = document.getElementById('save-btn');
+        const copyBtn = document.getElementById('copy-btn');
         const logList = document.getElementById('log-list');
 
-        // カメラ起動
+        let allLogs = []; // ログを溜める配列
+
         startBtn.onclick = async () => {
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
             video.srcObject = stream;
@@ -71,39 +63,47 @@
             shutterBtn.style.display = 'inline-block';
         };
 
-        // 撮影
         shutterBtn.onclick = () => {
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             canvas.getContext('2d').drawImage(video, 0, 0);
             previewImg.src = canvas.toDataURL('image/png');
-            
             document.getElementById('video-container').style.display = 'none';
             shutterBtn.style.display = 'none';
             memoArea.style.display = 'block';
         };
 
-        // ログ保存
         saveBtn.onclick = () => {
             const memoText = document.getElementById('memo-input').value;
-            const time = new Date().toLocaleTimeString();
+            const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
             
-            // ログ要素を作成
+            // データを保存
+            allLogs.push({ time: time, text: memoText });
+
+            // 表示を更新
             const item = document.createElement('div');
             item.className = 'log-item';
-            item.innerHTML = `
-                <img src="${previewImg.src}">
-                <div class="log-time">${time}</div>
-                <div class="log-text">${memoText}</div>
-            `;
-            
-            logList.prepend(item); // リストの先頭に追加
-            
-            // 入力をリセットしてカメラに戻る
+            item.innerHTML = `<img src="${previewImg.src}"><br><small>${time}</small><p>${memoText}</p>`;
+            logList.prepend(item);
+
+            // リセット
             document.getElementById('memo-input').value = '';
             memoArea.style.display = 'none';
             document.getElementById('video-container').style.display = 'block';
             shutterBtn.style.display = 'inline-block';
+            copyBtn.style.display = 'block';
+        };
+
+        // 【1タップでコピー機能】
+        copyBtn.onclick = () => {
+            let copyText = "## 今日の制作ログ\n\n";
+            allLogs.forEach(log => {
+                copyText += `### ${log.time}\n(ここに画像を貼り付け)\n${log.text}\n\n`;
+            });
+            
+            navigator.clipboard.writeText(copyText).then(() => {
+                alert("note用にコピーしました！noteの編集画面で貼り付けてください。");
+            });
         };
     </script>
 </body>
