@@ -5,16 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SOU - Production Log -</title>
     <style>
-        body { font-family: 'Helvetica Neue', Arial, sans-serif; text-align: center; background-color: #faf9f8; color: #5a5a5a; margin: 0; padding: 20px; line-height: 1.6; }
-        h3 { font-weight: normal; letter-spacing: 0.1em; color: #8c847c; }
-        #video-container { position: relative; width: 100%; max-width: 400px; margin: 0 auto 20px; border-radius: 12px; overflow: hidden; background: #e0ddd9; }
+        :root { --main-color: #d1cbc4; --accent-color: #8c847c; --bg-color: #faf9f8; --text-color: #5a5a5a; }
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; text-align: center; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 20px; line-height: 1.6; }
+        h3 { font-weight: normal; letter-spacing: 0.1em; color: var(--accent-color); margin-bottom: 10px; }
+        
+        /* 入力エリア共通 */
+        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); max-width: 400px; margin: 0 auto 20px; }
+        input, textarea { width: 100%; border: 1px solid var(--main-color); border-radius: 8px; padding: 10px; box-sizing: border-box; font-size: 14px; margin-bottom: 10px; }
+        
+        /* ライブカメラ */
+        #video-container { width: 100%; max-width: 400px; margin: 0 auto 20px; border-radius: 12px; overflow: hidden; background: #000; }
         video { width: 100%; display: block; }
-        #memo-area { width: 100%; max-width: 400px; margin: 0 auto; display: none; }
-        textarea { width: 100%; height: 80px; border: 1px solid #d1cbc4; border-radius: 8px; padding: 10px; box-sizing: border-box; font-size: 14px; margin-bottom: 10px; }
-        .btn { border: none; padding: 12px 24px; border-radius: 25px; font-size: 15px; cursor: pointer; margin: 5px; }
-        .btn-main { background-color: #d1cbc4; color: white; }
-        .btn-shutter { background-color: #a89f94; color: white; }
-        .btn-copy { background-color: #8c847c; color: white; width: 100%; max-width: 400px; margin-top: 20px; display: none; }
+        
+        /* ボタン */
+        .btn { border: none; padding: 12px 24px; border-radius: 25px; font-size: 15px; cursor: pointer; margin: 5px; transition: 0.3s; }
+        .btn-main { background-color: var(--main-color); color: white; }
+        .btn-accent { background-color: var(--accent-color); color: white; }
+        .btn-copy { background-color: var(--accent-color); color: white; width: 100%; max-width: 400px; margin-top: 20px; }
+
         #log-list { max-width: 400px; margin: 30px auto; text-align: left; }
         .log-item { background: white; padding: 15px; border-radius: 10px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
         .log-item img { width: 100%; border-radius: 6px; }
@@ -24,22 +32,26 @@
 
     <h3>SOU - Production Log -</h3>
 
+    <div class="card">
+        <input type="text" id="project-name" placeholder="制作物の名前（例：星形ランプ）">
+    </div>
+
     <div id="video-container">
         <video id="camera-view" autoplay playsinline></video>
     </div>
 
     <button id="start-btn" class="btn btn-main">カメラを起動</button>
-    <button id="shutter-btn" class="btn btn-shutter" style="display:none;">撮影する</button>
+    <button id="shutter-btn" class="btn btn-accent" style="display:none;">撮影する</button>
 
-    <div id="memo-area">
+    <div id="memo-area" style="display:none;" class="card">
         <canvas id="photo-canvas" style="display:none;"></canvas>
         <img id="preview-img" style="width:100%; border-radius:8px; margin-bottom:10px;">
         <textarea id="memo-input" placeholder="今のこだわりや気づきをメモ..."></textarea>
-        <button id="save-btn" class="btn btn-main">ログを保存</button>
+        <button id="save-btn" class="btn btn-accent">保存してダウンロード</button>
         <button onclick="location.reload()" class="btn">やり直し</button>
     </div>
 
-    <button id="copy-btn" class="btn btn-copy">すべてのログをnote用にコピー</button>
+    <button id="copy-btn" class="btn btn-copy" style="display:none;">note用に全コピー</button>
 
     <div id="log-list"></div>
 
@@ -54,7 +66,7 @@
         const copyBtn = document.getElementById('copy-btn');
         const logList = document.getElementById('log-list');
 
-        let allLogs = []; // ログを溜める配列
+        let allLogs = [];
 
         startBtn.onclick = async () => {
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
@@ -74,16 +86,22 @@
         };
 
         saveBtn.onclick = () => {
+            const projName = document.getElementById('project-name').value || "Project";
             const memoText = document.getElementById('memo-input').value;
-            const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
             
-            // データを保存
-            allLogs.push({ time: time, text: memoText });
+            // ダウンロード実行
+            const link = document.createElement('a');
+            link.download = `SOU_${projName}_${now.getTime()}.png`;
+            link.href = previewImg.src;
+            link.click();
 
-            // 表示を更新
+            // ログ保存
+            allLogs.push({ project: projName, time: timeStr, text: memoText });
             const item = document.createElement('div');
             item.className = 'log-item';
-            item.innerHTML = `<img src="${previewImg.src}"><br><small>${time}</small><p>${memoText}</p>`;
+            item.innerHTML = `<img src="${previewImg.src}"><br><small>${timeStr} - ${projName}</small><p>${memoText}</p>`;
             logList.prepend(item);
 
             // リセット
@@ -94,16 +112,13 @@
             copyBtn.style.display = 'block';
         };
 
-        // 【1タップでコピー機能】
         copyBtn.onclick = () => {
-            let copyText = "## 今日の制作ログ\n\n";
+            const projName = document.getElementById('project-name').value || "制作ログ";
+            let copyText = `## ${projName} の制作ログ\n\n`;
             allLogs.forEach(log => {
                 copyText += `### ${log.time}\n(ここに画像を貼り付け)\n${log.text}\n\n`;
             });
-            
-            navigator.clipboard.writeText(copyText).then(() => {
-                alert("note用にコピーしました！noteの編集画面で貼り付けてください。");
-            });
+            navigator.clipboard.writeText(copyText).then(() => alert("note用にコピーしました！"));
         };
     </script>
 </body>
