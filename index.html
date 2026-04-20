@@ -3,43 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SOU - Production Card -</title>
+    <title>Production Log App</title>
     <style>
         :root { --main-color: #d1cbc4; --accent-color: #8c847c; --bg-color: #faf9f8; --text-color: #5a5a5a; }
         body { font-family: 'Helvetica Neue', Arial, sans-serif; text-align: center; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 20px; }
-        h3 { font-weight: normal; letter-spacing: 0.1em; color: var(--accent-color); }
+        
+        /* ライブカメラエリア（3:2のガイドを表示） */
+        #video-container { 
+            position: relative; width: 100%; max-width: 400px; margin: 0 auto 20px; 
+            border-radius: 12px; overflow: hidden; background: #000;
+            aspect-ratio: 3 / 2; /* 画面上の表示も3:2に */
+        }
+        video { width: 100%; height: 100%; object-fit: cover; }
+
         .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); max-width: 400px; margin: 0 auto 20px; }
-        input, textarea { width: 100%; border: 1px solid var(--main-color); border-radius: 8px; padding: 10px; box-sizing: border-box; font-size: 14px; margin-bottom: 10px; }
-        #video-container { width: 100%; max-width: 400px; margin: 0 auto 20px; border-radius: 12px; overflow: hidden; background: #000; }
-        video { width: 100%; display: block; }
+        textarea { width: 100%; border: 1px solid var(--main-color); border-radius: 8px; padding: 10px; box-sizing: border-box; font-size: 14px; height: 80px; margin-bottom: 10px; }
+        
         .btn { border: none; padding: 12px 24px; border-radius: 25px; font-size: 15px; cursor: pointer; margin: 5px; }
         .btn-main { background-color: var(--main-color); color: white; }
         .btn-accent { background-color: var(--accent-color); color: white; }
+        
         #log-list { max-width: 400px; margin: 30px auto; text-align: left; }
-        .log-item { background: white; padding: 10px; border-radius: 5px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
-        .log-item img { width: 100%; border-radius: 3px; }
+        .log-item { background: white; padding: 10px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
+        .log-item img { width: 100%; border-radius: 4px; }
     </style>
 </head>
 <body>
-
-    <h3>SOU - Production Card -</h3>
-
-    <div class="card">
-        <input type="text" id="project-name" placeholder="作品名（例：Bambu Lamp）">
-    </div>
 
     <div id="video-container">
         <video id="camera-view" autoplay playsinline></video>
     </div>
 
-    <button id="start-btn" class="btn btn-main">カメラ起動</button>
-    <button id="shutter-btn" class="btn btn-accent" style="display:none;">撮影</button>
+    <button id="start-btn" class="btn btn-main">カメラを起動</button>
+    <button id="shutter-btn" class="btn btn-accent" style="display:none;">撮影する</button>
 
     <div id="memo-area" style="display:none;" class="card">
         <canvas id="export-canvas" style="display:none;"></canvas>
         <img id="preview-img" style="width:100%; border-radius:4px; margin-bottom:10px;">
-        <textarea id="memo-input" placeholder="メモを一言..."></textarea>
-        <button id="save-btn" class="btn btn-accent">チェキ風に保存</button>
+        <textarea id="memo-input" placeholder="今のこだわりをメモ..."></textarea>
+        <button id="save-btn" class="btn btn-accent">カードを保存</button>
         <button onclick="location.reload()" class="btn">やり直し</button>
     </div>
 
@@ -55,70 +57,85 @@
         const saveBtn = document.getElementById('save-btn');
         const logList = document.getElementById('log-list');
 
+        // 日時フォーマット関数 (2026-04-20 17:17)
+        function getFormattedDate() {
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = String(now.getMonth() + 1).padStart(2, '0');
+            const d = String(now.getDate()).padStart(2, '0');
+            const hh = String(now.getHours()).padStart(2, '0');
+            const mm = String(now.getMinutes()).padStart(2, '0');
+            return `${y}-${m}-${d} ${hh}:${mm}`;
+        }
+
         startBtn.onclick = async () => {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: "environment" } 
+            });
             video.srcObject = stream;
             startBtn.style.display = 'none';
             shutterBtn.style.display = 'inline-block';
         };
 
         shutterBtn.onclick = () => {
-            // プレビュー用に一時表示
+            // 3:2の比率でプレビュー画像を作成
             const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = video.videoWidth;
-            tempCanvas.height = video.videoHeight;
-            tempCanvas.getContext('2d').drawImage(video, 0, 0);
+            const w = video.videoWidth;
+            const h = video.videoWidth / 1.5; // 3:2の高さ
+            tempCanvas.width = w;
+            tempCanvas.height = h;
+            
+            // 中央を切り抜く
+            const yOffset = (video.videoHeight - h) / 2;
+            tempCanvas.getContext('2d').drawImage(video, 0, yOffset, w, h, 0, 0, w, h);
+            
             previewImg.src = tempCanvas.toDataURL('image/png');
-
             document.getElementById('video-container').style.display = 'none';
             shutterBtn.style.display = 'none';
             memoArea.style.display = 'block';
         };
 
         saveBtn.onclick = () => {
-            const projName = document.getElementById('project-name').value || "SOU";
             const memoText = document.getElementById('memo-input').value;
-            const timeStr = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            const fullDateStr = getFormattedDate();
             
-            // --- チェキ風合成処理 ---
             const ctx = exportCanvas.getContext('2d');
             const imgW = video.videoWidth;
-            const imgH = video.videoHeight;
+            const imgH = imgW / 1.5; // 写真部分は3:2
             
-            // 余白の計算（写真の周りに白枠、下に広めの余白）
-            const padding = imgW * 0.08; // 横枠
-            const bottomSpace = imgW * 0.35; // 下の文字入れ部分
-            
-            exportCanvas.width = imgW + (padding * 2);
-            exportCanvas.height = imgH + padding + bottomSpace;
+            // 正方形(1:1)のキャンバスサイズ設定
+            const canvasSize = imgW * 1.1; // 左右に少し余白
+            exportCanvas.width = canvasSize;
+            exportCanvas.height = canvasSize;
 
-            // 1. 背景（白枠）を塗る
+            // 1. 背景（白）
             ctx.fillStyle = "#ffffff";
-            ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+            ctx.fillRect(0, 0, canvasSize, canvasSize);
 
-            // 2. 写真を描画
-            ctx.drawImage(video, padding, padding, imgW, imgH);
+            // 2. 写真を描画（上部に配置）
+            const padding = (canvasSize - imgW) / 2;
+            ctx.drawImage(video, 0, (video.videoHeight - imgH) / 2, imgW, imgH, padding, padding, imgW, imgH);
 
-            // 3. 文字を描画（下の余白部分）
+            // 3. 文字を描画（下部の余白）
             ctx.fillStyle = "#5a5a5a";
-            ctx.font = `${imgW * 0.05}px 'Helvetica Neue'`; // 作品名
-            ctx.fillText(projName, padding * 1.2, imgH + padding + (bottomSpace * 0.3));
+            ctx.font = `${canvasSize * 0.045}px sans-serif`;
             
-            ctx.font = `${imgW * 0.04}px 'Helvetica Neue'`; // メモ
-            ctx.fillText(memoText, padding * 1.2, imgH + padding + (bottomSpace * 0.6));
-
+            // メモ（折り返し対応は簡易的に1行で表示、長い場合は...とするか、必要なら調整）
+            ctx.fillText(memoText, padding * 1.5, imgH + padding + (canvasSize * 0.1));
+            
+            // 日時
             ctx.fillStyle = "#a0a0a0";
-            ctx.font = `${imgW * 0.035}px 'Helvetica Neue'`; // 時間
-            ctx.fillText(timeStr, padding * 1.2, imgH + padding + (bottomSpace * 0.85));
+            ctx.font = `${canvasSize * 0.035}px sans-serif`;
+            ctx.fillText(fullDateStr, padding * 1.5, canvasSize - (padding * 1.5));
 
-            // --- 保存処理 ---
+            // 保存
             const finalImage = exportCanvas.toDataURL('image/png');
             const link = document.createElement('a');
-            link.download = `SOU_Card_${new Date().getTime()}.png`;
+            link.download = `Log_${new Date().getTime()}.png`;
             link.href = finalImage;
             link.click();
 
-            // ログリストに追加
+            // ログ表示
             const item = document.createElement('div');
             item.className = 'log-item';
             item.innerHTML = `<img src="${finalImage}">`;
