@@ -78,7 +78,7 @@
         shutterBtn.onclick = () => {
             const tempCanvas = document.createElement('canvas');
             const w = video.videoWidth;
-            const h = video.videoWidth / 1.5; // 3:2
+            const h = video.videoWidth / 1.5;
             tempCanvas.width = w;
             tempCanvas.height = h;
             const yOffset = (video.videoHeight - h) / 2;
@@ -98,32 +98,27 @@
             const imgW = video.videoWidth;
             const imgH = imgW / 1.5;
             
-            // 【余白調整】canvasSizeを1.2倍に（ほどよい余白）
             const canvasSize = imgW * 1.2; 
             exportCanvas.width = canvasSize;
             exportCanvas.height = canvasSize;
 
-            // 1. 背景
             ctx.fillStyle = "#ffffff";
             ctx.fillRect(0, 0, canvasSize, canvasSize);
 
-            // 【レイアウト調整】「写真は上に置く（下余白広め）」
-            const xPadding = (canvasSize - imgW) / 2; // 左右の枠
-            const yPaddingTop = canvasSize * 0.08; // 上の枠 (例えば8%くらいで固定)
-            const imgTop = yPaddingTop; // 写真の上の位置
+            const xPadding = (canvasSize - imgW) / 2;
+            const yPaddingTop = canvasSize * 0.08; 
+            const imgTop = yPaddingTop;
 
-            // 2. 写真を描画（上に配置）
             ctx.drawImage(video, 0, (video.videoHeight - imgH) / 2, imgW, imgH, xPadding, imgTop, imgW, imgH);
 
-            // 3. 文字を描画（下の余白）
+            // 文字色の統一 (#5a5a5a)
             ctx.fillStyle = "#5a5a5a";
-            ctx.font = `${canvasSize * 0.04}px sans-serif`;
             
-            // メモの位置 (写真の下にゆったりと配置)
+            // メモの描画
+            ctx.font = `${canvasSize * 0.04}px sans-serif`;
             ctx.fillText(memoText, xPadding * 1.2, imgTop + imgH + (canvasSize * 0.12));
             
-            // 日時の位置 (さらにその下に控えめに)
-            ctx.fillStyle = "#b0b0b0";
+            // 日時の描画（同じ色に設定）
             ctx.font = `${canvasSize * 0.03}px sans-serif`;
             ctx.fillText(fullDateStr, xPadding * 1.2, canvasSize - (canvasSize * 0.1));
 
