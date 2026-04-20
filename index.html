@@ -3,42 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SOU 制作ロガー（プロトタイプ）</title>
+    <title>SOU 制作ロガー（ライブカメラ版）</title>
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #faf9f8; color: #4a4a4a; }
-        #preview { width: 100%; max-width: 400px; margin-top: 20px; border-radius: 8px; display: none; } /* 初期状態は非表示 */
-        .upload-btn { background-color: #d1cbc4; border: none; padding: 12px 24px; border-radius: 25px; cursor: pointer; font-size: 16px; }
+        body { font-family: sans-serif; text-align: center; background-color: #faf9f8; color: #4a4a4a; margin: 0; padding: 20px; }
+        /* 映像を映す枠 */
+        #video-container { position: relative; width: 100%; max-width: 400px; margin: 0 auto; border-radius: 15px; overflow: hidden; background: #000; }
+        video { width: 100%; display: block; }
+        /* ボタンのデザイン */
+        .btn { background-color: #d1cbc4; border: none; padding: 15px 30px; border-radius: 30px; color: white; font-size: 16px; margin-top: 20px; cursor: pointer; }
+        .btn-shutter { background-color: #a89f94; }
+        /* 撮った写真の表示 */
+        #photo-canvas { width: 100%; max-width: 400px; margin-top: 20px; border-radius: 15px; display: none; }
     </style>
 </head>
 <body>
 
-    <h2>制作ログを撮る</h2>
+    <h3>制作ログ撮影</h3>
 
-    <input type="file" id="camera-input" accept="image/*" capture="environment" style="display: none;">
-    
-    <button class="upload-btn" onclick="document.getElementById('camera-input').click();">
-        カメラを起動
-    </button>
+    <div id="video-container">
+        <video id="camera-view" autoplay playsinline></video>
+    </div>
 
-    <br>
+    <button id="start-btn" class="btn">カメラを起動</button>
+    <button id="shutter-btn" class="btn btn-shutter" style="display:none;">シャッターを切る</button>
 
-    <img id="preview" src="" alt="プレビュー">
+    <canvas id="photo-canvas"></canvas>
 
     <script>
-        const cameraInput = document.getElementById('camera-input');
-        const preview = document.getElementById('preview');
+        const video = document.getElementById('camera-view');
+        const canvas = document.getElementById('photo-canvas');
+        const startBtn = document.getElementById('start-btn');
+        const shutterBtn = document.getElementById('shutter-btn');
 
-        cameraInput.addEventListener('change', (event) => {
-            const file = event.target.files[0]; // 撮った（選んだ）ファイルを取得
-            
-            if (file) {
-                // 画像のURLを作成してimgタグにセット
-                const imageUrl = URL.createObjectURL(file);
-                preview.src = imageUrl;
-                preview.style.display = 'block'; // 画像を表示
+        // 1. カメラを起動する
+        startBtn.onclick = async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "environment" }, // 背面カメラ
+                    audio: false 
+                });
+                video.srcObject = stream;
+                startBtn.style.display = 'none';
+                shutterBtn.style.display = 'inline-block';
+            } catch (err) {
+                alert("カメラの起動に失敗しました。設定でカメラ権限を許可してください。");
             }
-        });
-    </script>
+        };
 
+        // 2. シャッターを切る
+        shutterBtn.onclick = () => {
+            const context = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            // 映像の一瞬をキャンバスにコピー
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            canvas.style.display = 'block';
+            video.style.display = 'none'; // プレビューのために映像を隠す
+            shutterBtn.innerText = "撮り直す";
+            shutterBtn.onclick = () => location.reload(); // 簡易的な撮り直し
+        };
+    </script>
 </body>
 </html>
