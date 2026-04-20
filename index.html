@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOU 制作ロガー（プロトタイプ）</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #faf9f8; color: #4a4a4a; }
+        #preview { width: 100%; max-width: 400px; margin-top: 20px; border-radius: 8px; display: none; } /* 初期状態は非表示 */
+        .upload-btn { background-color: #d1cbc4; border: none; padding: 12px 24px; border-radius: 25px; cursor: pointer; font-size: 16px; }
+    </style>
+</head>
+<body>
+
+    <h2>制作ログを撮る</h2>
+
+    <input type="file" id="camera-input" accept="image/*" capture="environment" style="display: none;">
+    
+    <button class="upload-btn" onclick="document.getElementById('camera-input').click();">
+        カメラを起動
+    </button>
+
+    <br>
+
+    <img id="preview" src="" alt="プレビュー">
+
+    <script>
+        const cameraInput = document.getElementById('camera-input');
+        const preview = document.getElementById('preview');
+
+        cameraInput.addEventListener('change', (event) => {
+            const file = event.target.files[0]; // 撮った（選んだ）ファイルを取得
+            
+            if (file) {
+                // 画像のURLを作成してimgタグにセット
+                const imageUrl = URL.createObjectURL(file);
+                preview.src = imageUrl;
+                preview.style.display = 'block'; // 画像を表示
+            }
+        });
+    </script>
+
+</body>
+</html>
