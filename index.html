@@ -3,70 +3,57 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SOU - Production Log -</title>
+    <title>SOU - Production Card -</title>
     <style>
         :root { --main-color: #d1cbc4; --accent-color: #8c847c; --bg-color: #faf9f8; --text-color: #5a5a5a; }
-        body { font-family: 'Helvetica Neue', Arial, sans-serif; text-align: center; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 20px; line-height: 1.6; }
-        h3 { font-weight: normal; letter-spacing: 0.1em; color: var(--accent-color); margin-bottom: 10px; }
-        
-        /* 入力エリア共通 */
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; text-align: center; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 20px; }
+        h3 { font-weight: normal; letter-spacing: 0.1em; color: var(--accent-color); }
         .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); max-width: 400px; margin: 0 auto 20px; }
         input, textarea { width: 100%; border: 1px solid var(--main-color); border-radius: 8px; padding: 10px; box-sizing: border-box; font-size: 14px; margin-bottom: 10px; }
-        
-        /* ライブカメラ */
         #video-container { width: 100%; max-width: 400px; margin: 0 auto 20px; border-radius: 12px; overflow: hidden; background: #000; }
         video { width: 100%; display: block; }
-        
-        /* ボタン */
-        .btn { border: none; padding: 12px 24px; border-radius: 25px; font-size: 15px; cursor: pointer; margin: 5px; transition: 0.3s; }
+        .btn { border: none; padding: 12px 24px; border-radius: 25px; font-size: 15px; cursor: pointer; margin: 5px; }
         .btn-main { background-color: var(--main-color); color: white; }
         .btn-accent { background-color: var(--accent-color); color: white; }
-        .btn-copy { background-color: var(--accent-color); color: white; width: 100%; max-width: 400px; margin-top: 20px; }
-
         #log-list { max-width: 400px; margin: 30px auto; text-align: left; }
-        .log-item { background: white; padding: 15px; border-radius: 10px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
-        .log-item img { width: 100%; border-radius: 6px; }
+        .log-item { background: white; padding: 10px; border-radius: 5px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
+        .log-item img { width: 100%; border-radius: 3px; }
     </style>
 </head>
 <body>
 
-    <h3>SOU - Production Log -</h3>
+    <h3>SOU - Production Card -</h3>
 
     <div class="card">
-        <input type="text" id="project-name" placeholder="制作物の名前（例：星形ランプ）">
+        <input type="text" id="project-name" placeholder="作品名（例：Bambu Lamp）">
     </div>
 
     <div id="video-container">
         <video id="camera-view" autoplay playsinline></video>
     </div>
 
-    <button id="start-btn" class="btn btn-main">カメラを起動</button>
-    <button id="shutter-btn" class="btn btn-accent" style="display:none;">撮影する</button>
+    <button id="start-btn" class="btn btn-main">カメラ起動</button>
+    <button id="shutter-btn" class="btn btn-accent" style="display:none;">撮影</button>
 
     <div id="memo-area" style="display:none;" class="card">
-        <canvas id="photo-canvas" style="display:none;"></canvas>
-        <img id="preview-img" style="width:100%; border-radius:8px; margin-bottom:10px;">
-        <textarea id="memo-input" placeholder="今のこだわりや気づきをメモ..."></textarea>
-        <button id="save-btn" class="btn btn-accent">保存してダウンロード</button>
+        <canvas id="export-canvas" style="display:none;"></canvas>
+        <img id="preview-img" style="width:100%; border-radius:4px; margin-bottom:10px;">
+        <textarea id="memo-input" placeholder="メモを一言..."></textarea>
+        <button id="save-btn" class="btn btn-accent">チェキ風に保存</button>
         <button onclick="location.reload()" class="btn">やり直し</button>
     </div>
-
-    <button id="copy-btn" class="btn btn-copy" style="display:none;">note用に全コピー</button>
 
     <div id="log-list"></div>
 
     <script>
         const video = document.getElementById('camera-view');
-        const canvas = document.getElementById('photo-canvas');
+        const exportCanvas = document.getElementById('export-canvas');
         const previewImg = document.getElementById('preview-img');
         const memoArea = document.getElementById('memo-area');
         const startBtn = document.getElementById('start-btn');
         const shutterBtn = document.getElementById('shutter-btn');
         const saveBtn = document.getElementById('save-btn');
-        const copyBtn = document.getElementById('copy-btn');
         const logList = document.getElementById('log-list');
-
-        let allLogs = [];
 
         startBtn.onclick = async () => {
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
@@ -76,49 +63,72 @@
         };
 
         shutterBtn.onclick = () => {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            canvas.getContext('2d').drawImage(video, 0, 0);
-            previewImg.src = canvas.toDataURL('image/png');
+            // プレビュー用に一時表示
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = video.videoWidth;
+            tempCanvas.height = video.videoHeight;
+            tempCanvas.getContext('2d').drawImage(video, 0, 0);
+            previewImg.src = tempCanvas.toDataURL('image/png');
+
             document.getElementById('video-container').style.display = 'none';
             shutterBtn.style.display = 'none';
             memoArea.style.display = 'block';
         };
 
         saveBtn.onclick = () => {
-            const projName = document.getElementById('project-name').value || "Project";
+            const projName = document.getElementById('project-name').value || "SOU";
             const memoText = document.getElementById('memo-input').value;
-            const now = new Date();
-            const timeStr = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            const timeStr = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
             
-            // ダウンロード実行
+            // --- チェキ風合成処理 ---
+            const ctx = exportCanvas.getContext('2d');
+            const imgW = video.videoWidth;
+            const imgH = video.videoHeight;
+            
+            // 余白の計算（写真の周りに白枠、下に広めの余白）
+            const padding = imgW * 0.08; // 横枠
+            const bottomSpace = imgW * 0.35; // 下の文字入れ部分
+            
+            exportCanvas.width = imgW + (padding * 2);
+            exportCanvas.height = imgH + padding + bottomSpace;
+
+            // 1. 背景（白枠）を塗る
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+
+            // 2. 写真を描画
+            ctx.drawImage(video, padding, padding, imgW, imgH);
+
+            // 3. 文字を描画（下の余白部分）
+            ctx.fillStyle = "#5a5a5a";
+            ctx.font = `${imgW * 0.05}px 'Helvetica Neue'`; // 作品名
+            ctx.fillText(projName, padding * 1.2, imgH + padding + (bottomSpace * 0.3));
+            
+            ctx.font = `${imgW * 0.04}px 'Helvetica Neue'`; // メモ
+            ctx.fillText(memoText, padding * 1.2, imgH + padding + (bottomSpace * 0.6));
+
+            ctx.fillStyle = "#a0a0a0";
+            ctx.font = `${imgW * 0.035}px 'Helvetica Neue'`; // 時間
+            ctx.fillText(timeStr, padding * 1.2, imgH + padding + (bottomSpace * 0.85));
+
+            // --- 保存処理 ---
+            const finalImage = exportCanvas.toDataURL('image/png');
             const link = document.createElement('a');
-            link.download = `SOU_${projName}_${now.getTime()}.png`;
-            link.href = previewImg.src;
+            link.download = `SOU_Card_${new Date().getTime()}.png`;
+            link.href = finalImage;
             link.click();
 
-            // ログ保存
-            allLogs.push({ project: projName, time: timeStr, text: memoText });
+            // ログリストに追加
             const item = document.createElement('div');
             item.className = 'log-item';
-            item.innerHTML = `<img src="${previewImg.src}"><br><small>${timeStr} - ${projName}</small><p>${memoText}</p>`;
+            item.innerHTML = `<img src="${finalImage}">`;
             logList.prepend(item);
 
             // リセット
-            document.getElementById('memo-input').value = '';
             memoArea.style.display = 'none';
             document.getElementById('video-container').style.display = 'block';
             shutterBtn.style.display = 'inline-block';
-            copyBtn.style.display = 'block';
-        };
-
-        copyBtn.onclick = () => {
-            const projName = document.getElementById('project-name').value || "制作ログ";
-            let copyText = `## ${projName} の制作ログ\n\n`;
-            allLogs.forEach(log => {
-                copyText += `### ${log.time}\n(ここに画像を貼り付け)\n${log.text}\n\n`;
-            });
-            navigator.clipboard.writeText(copyText).then(() => alert("note用にコピーしました！"));
+            document.getElementById('memo-input').value = '';
         };
     </script>
 </body>
