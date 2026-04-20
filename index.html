@@ -8,16 +8,15 @@
         :root { --main-color: #d1cbc4; --accent-color: #8c847c; --bg-color: #faf9f8; --text-color: #5a5a5a; }
         body { font-family: 'Helvetica Neue', Arial, sans-serif; text-align: center; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 20px; }
         
-        /* ライブカメラエリア（3:2のガイドを表示） */
         #video-container { 
             position: relative; width: 100%; max-width: 400px; margin: 0 auto 20px; 
             border-radius: 12px; overflow: hidden; background: #000;
-            aspect-ratio: 3 / 2; /* 画面上の表示も3:2に */
+            aspect-ratio: 3 / 2;
         }
         video { width: 100%; height: 100%; object-fit: cover; }
 
         .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); max-width: 400px; margin: 0 auto 20px; }
-        textarea { width: 100%; border: 1px solid var(--main-color); border-radius: 8px; padding: 10px; box-sizing: border-box; font-size: 14px; height: 80px; margin-bottom: 10px; }
+        textarea { width: 100%; border: 1px solid var(--main-color); border-radius: 8px; padding: 10px; box-sizing: border-box; font-size: 14px; height: 80px; margin-bottom: 10px; resize: none; }
         
         .btn { border: none; padding: 12px 24px; border-radius: 25px; font-size: 15px; cursor: pointer; margin: 5px; }
         .btn-main { background-color: var(--main-color); color: white; }
@@ -57,7 +56,6 @@
         const saveBtn = document.getElementById('save-btn');
         const logList = document.getElementById('log-list');
 
-        // 日時フォーマット関数 (2026-04-20 17:17)
         function getFormattedDate() {
             const now = new Date();
             const y = now.getFullYear();
@@ -78,14 +76,11 @@
         };
 
         shutterBtn.onclick = () => {
-            // 3:2の比率でプレビュー画像を作成
             const tempCanvas = document.createElement('canvas');
             const w = video.videoWidth;
-            const h = video.videoWidth / 1.5; // 3:2の高さ
+            const h = video.videoWidth / 1.5;
             tempCanvas.width = w;
             tempCanvas.height = h;
-            
-            // 中央を切り抜く
             const yOffset = (video.videoHeight - h) / 2;
             tempCanvas.getContext('2d').drawImage(video, 0, yOffset, w, h, 0, 0, w, h);
             
@@ -101,52 +96,15 @@
             
             const ctx = exportCanvas.getContext('2d');
             const imgW = video.videoWidth;
-            const imgH = imgW / 1.5; // 写真部分は3:2
+            const imgH = imgW / 1.5;
             
-            // 正方形(1:1)のキャンバスサイズ設定
-            const canvasSize = imgW * 1.1; // 左右に少し余白
+            // 【余白設定】canvasSizeを大きくして余白を広げる (1.4倍)
+            const canvasSize = imgW * 1.4; 
             exportCanvas.width = canvasSize;
             exportCanvas.height = canvasSize;
 
-            // 1. 背景（白）
+            // 1. 背景
             ctx.fillStyle = "#ffffff";
             ctx.fillRect(0, 0, canvasSize, canvasSize);
 
-            // 2. 写真を描画（上部に配置）
-            const padding = (canvasSize - imgW) / 2;
-            ctx.drawImage(video, 0, (video.videoHeight - imgH) / 2, imgW, imgH, padding, padding, imgW, imgH);
-
-            // 3. 文字を描画（下部の余白）
-            ctx.fillStyle = "#5a5a5a";
-            ctx.font = `${canvasSize * 0.045}px sans-serif`;
-            
-            // メモ（折り返し対応は簡易的に1行で表示、長い場合は...とするか、必要なら調整）
-            ctx.fillText(memoText, padding * 1.5, imgH + padding + (canvasSize * 0.1));
-            
-            // 日時
-            ctx.fillStyle = "#a0a0a0";
-            ctx.font = `${canvasSize * 0.035}px sans-serif`;
-            ctx.fillText(fullDateStr, padding * 1.5, canvasSize - (padding * 1.5));
-
-            // 保存
-            const finalImage = exportCanvas.toDataURL('image/png');
-            const link = document.createElement('a');
-            link.download = `Log_${new Date().getTime()}.png`;
-            link.href = finalImage;
-            link.click();
-
-            // ログ表示
-            const item = document.createElement('div');
-            item.className = 'log-item';
-            item.innerHTML = `<img src="${finalImage}">`;
-            logList.prepend(item);
-
-            // リセット
-            memoArea.style.display = 'none';
-            document.getElementById('video-container').style.display = 'block';
-            shutterBtn.style.display = 'inline-block';
-            document.getElementById('memo-input').value = '';
-        };
-    </script>
-</body>
-</html>
+            // 2. 写真を描画 (中央よりやや
