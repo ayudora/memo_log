@@ -28,12 +28,21 @@
         .btn-accent { background-color: var(--accent-color); color: white; }
         .btn-outline { background-color: transparent; border: 1px solid var(--accent-color); color: var(--accent-color); }
         
+        /* ドラッグ用コンテナ */
         #crop-viewport {
             position: relative; width: 100%; aspect-ratio: 3/2; 
             overflow: hidden; border-radius: 8px; margin-bottom: 15px; 
             background: #eee; cursor: move; touch-action: none;
+            display: none;
         }
         #drag-img { position: absolute; top: 0; left: 0; pointer-events: none; }
+
+        /* カメラ撮影後の固定プレビュー */
+        #fixed-preview {
+            width: 100%; aspect-ratio: 3/2; object-fit: cover;
+            border-radius: 8px; margin-bottom: 15px;
+            display: none;
+        }
 
         #log-list { max-width: 400px; margin: 30px auto; text-align: left; }
         .log-item { background: white; padding: 10px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
@@ -64,6 +73,8 @@
             <img id="drag-img">
         </div>
 
+        <img id="fixed-preview">
+
         <textarea id="memo-input" placeholder="メモ…"></textarea>
         <button id="save-btn" class="btn btn-accent">保存</button>
         <button onclick="location.reload()" class="btn">やり直し</button>
@@ -77,6 +88,7 @@
         const exportCanvas = document.getElementById('export-canvas');
         const dragImg = document.getElementById('drag-img');
         const viewport = document.getElementById('crop-viewport');
+        const fixedPreview = document.getElementById('fixed-preview');
         const memoArea = document.getElementById('memo-area');
         
         const startBtn = document.getElementById('start-btn');
@@ -92,6 +104,7 @@
         let imgPos = { x: 0, y: 0 };
         let isDragging = false;
         let startPos = { x: 0, y: 0 };
+        let isManualMode = false; // ドラッグモードかどうか
 
         function getFormattedDate() {
             const now = new Date();
@@ -115,8 +128,13 @@
             fileBtn.style.display = 'inline-block';
         }
 
-        function initImage(source) {
+        // --- ドラッグ調整モードの初期化 (ファイル選択用) ---
+        function initDragMode(source) {
+            isManualMode = true;
             originalImg = source;
+            viewport.style.display = 'block';
+            fixedPreview.style.display = 'none';
+
             const vpW = viewport.clientWidth;
             const vpH = viewport.clientHeight;
             const imgAspect = source.width / source.height;
@@ -158,22 +176,55 @@
             if (!isDragging) return;
             imgPos.x = e.clientX - startPos.x;
             imgPos.y = e.clientY - startPos.y;
-
             const vpW = viewport.clientWidth;
             const vpH = viewport.clientHeight;
             const imgW = dragImg.clientWidth;
             const imgH = dragImg.clientHeight;
-
             if (imgPos.x > 0) imgPos.x = 0;
             if (imgPos.y > 0) imgPos.y = 0;
             if (imgPos.x < vpW - imgW) imgPos.x = vpW - imgW;
             if (imgPos.y < vpH - imgH) imgPos.y = vpH - imgH;
-
             updateImgStyle();
         };
 
         viewport.onpointerup = () => { isDragging = false; };
 
+        // --- カメラ撮影 (自動クロップ) ---
+        shutterBtn.onclick = () => {
+            isManualMode = false;
+            const vw = video.videoWidth;
+            const vh = video.videoHeight;
+            
+            // 3:2の中央を計算
+            let sw, sh, sx, sy;
+            if (vw / vh > 1.5) {
+                sh = vh; sw = vh * 1.5; sx = (vw - sw) / 2; sy = 0;
+            } else {
+                sw = vw; sh = vw / 1.5; sx = 0; sy = (vh - sh) / 2;
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = sw;
+            canvas.height = sh;
+            canvas.getContext('2d').drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
+            
+            const croppedData = canvas.toDataURL('image/png');
+            fixedPreview.src = croppedData;
+            fixedPreview.style.display = 'block';
+            viewport.style.display = 'none';
+            
+            // 保存用に元画像として保持
+            const img = new Image();
+            img.onload = () => { originalImg = img; };
+            img.src = croppedData;
+
+            stopCamera();
+            startBtn.style.display = 'none';
+            fileBtn.style.display = 'none';
+            memoArea.style.display = 'block';
+        };
+
+        // カメラ・ファイル操作
         startBtn.onclick = async () => {
             try {
                 currentStream = await navigator.mediaDevices.getUserMedia({ 
@@ -190,16 +241,6 @@
 
         stopBtn.onclick = stopCamera;
 
-        shutterBtn.onclick = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            canvas.getContext('2d').drawImage(video, 0, 0);
-            const img = new Image();
-            img.onload = () => { initImage(img); stopCamera(); };
-            img.src = canvas.toDataURL('image/png');
-        };
-
         fileBtn.onclick = () => fileInput.click();
         fileInput.onchange = (e) => {
             const file = e.target.files[0];
@@ -207,23 +248,30 @@
             const reader = new FileReader();
             reader.onload = (ev) => {
                 const img = new Image();
-                img.onload = () => { initImage(img); startBtn.style.display = 'none'; fileBtn.style.display = 'none'; };
+                img.onload = () => { initDragMode(img); startBtn.style.display = 'none'; fileBtn.style.display = 'none'; };
                 img.src = ev.target.result;
             };
             reader.readAsDataURL(file);
         };
 
+        // 保存処理
         saveBtn.onclick = () => {
             const memoText = document.getElementById('memo-input').value;
             const fullDateStr = getFormattedDate();
             const ctx = exportCanvas.getContext('2d');
             const canvasSize = 800;
 
-            const scale = originalImg.width / dragImg.clientWidth;
-            const sx = -imgPos.x * scale;
-            const sy = -imgPos.y * scale;
-            const sw = viewport.clientWidth * scale;
-            const sh = viewport.clientHeight * scale;
+            let sx, sy, sw, sh;
+            if (isManualMode) {
+                const scale = originalImg.width / dragImg.clientWidth;
+                sx = -imgPos.x * scale;
+                sy = -imgPos.y * scale;
+                sw = viewport.clientWidth * scale;
+                sh = viewport.clientHeight * scale;
+            } else {
+                // カメラ撮影の場合は既にクロップ済み
+                sx = 0; sy = 0; sw = originalImg.width; sh = originalImg.height;
+            }
 
             ctx.fillStyle = "#ffffff";
             ctx.fillRect(0, 0, canvasSize, canvasSize);
