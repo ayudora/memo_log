@@ -1,10 +1,13 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-	<link rel="manifest" href="manifest.json">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Production Log App</title>
+    <title>SOU Production Log</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#d1cbc4">
+    <link rel="apple-touch-icon" href="icon-192.png">
+
     <style>
         :root { --main-color: #d1cbc4; --accent-color: #8c847c; --bg-color: #faf9f8; --text-color: #5a5a5a; }
         body { font-family: 'Helvetica Neue', Arial, sans-serif; text-align: center; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 20px; }
@@ -17,7 +20,7 @@
         video { width: 100%; height: 100%; object-fit: cover; }
 
         .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); max-width: 400px; margin: 0 auto 20px; }
-        textarea { width: 100%; border: 1px solid var(--main-color); border-radius: 8px; padding: 10px; box-sizing: border-box; font-size: 14px; height: 80px; margin-bottom: 10px; resize: none; }
+        textarea { width: 100%; border: 1px solid var(--main-color); border-radius: 8px; padding: 10px; box-sizing: border-box; font-size: 16px; height: 100px; margin-bottom: 10px; resize: none; }
         
         .btn { border: none; padding: 12px 24px; border-radius: 25px; font-size: 15px; cursor: pointer; margin: 5px; }
         .btn-main { background-color: var(--main-color); color: white; }
@@ -38,7 +41,7 @@
     <button id="shutter-btn" class="btn btn-accent" style="display:none;">撮影する</button>
 
     <div id="memo-area" style="display:none;" class="card">
-        <canvas id="export-canvas" style="display:none;"></canvas>
+        <canvas id="export-canvas" width="800" height="800" style="display:none;"></canvas>
         <img id="preview-img" style="width:100%; border-radius:4px; margin-bottom:10px;">
         <textarea id="memo-input" placeholder="今のこだわりをメモ..."></textarea>
         <button id="save-btn" class="btn btn-accent">カードを保存</button>
@@ -57,6 +60,8 @@
         const saveBtn = document.getElementById('save-btn');
         const logList = document.getElementById('log-list');
 
+        let capturedImageBlob = null;
+
         function getFormattedDate() {
             const now = new Date();
             const y = now.getFullYear();
@@ -69,7 +74,7 @@
 
         startBtn.onclick = async () => {
             const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: "environment" } 
+                video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } } 
             });
             video.srcObject = stream;
             startBtn.style.display = 'none';
@@ -77,15 +82,31 @@
         };
 
         shutterBtn.onclick = () => {
-            const tempCanvas = document.createElement('canvas');
-            const w = video.videoWidth;
-            const h = video.videoWidth / 1.5;
-            tempCanvas.width = w;
-            tempCanvas.height = h;
-            const yOffset = (video.videoHeight - h) / 2;
-            tempCanvas.getContext('2d').drawImage(video, 0, yOffset, w, h, 0, 0, w, h);
+            const vw = video.videoWidth;
+            const vh = video.videoHeight;
             
-            previewImg.src = tempCanvas.toDataURL('image/png');
+            // ビデオから3:2の領域を切り抜く計算
+            let targetW, targetH, xOffset, yOffset;
+            if (vw / vh > 1.5) { // 16:9など横長すぎる場合
+                targetH = vh;
+                targetW = vh * 1.5;
+                xOffset = (vw - targetW) / 2;
+                yOffset = 0;
+            } else { // 4:3など縦長すぎる場合
+                targetW = vw;
+                targetH = vw / 1.5;
+                xOffset = 0;
+                yOffset = (vh - targetH) / 2;
+            }
+
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = targetW;
+            tempCanvas.height = targetH;
+            tempCanvas.getContext('2d').drawImage(video, xOffset, yOffset, targetW, targetH, 0, 0, targetW, targetH);
+            
+            capturedImageBlob = tempCanvas.toDataURL('image/png');
+            previewImg.src = capturedImageBlob;
+
             document.getElementById('video-container').style.display = 'none';
             shutterBtn.style.display = 'none';
             memoArea.style.display = 'block';
@@ -94,57 +115,55 @@
         saveBtn.onclick = () => {
             const memoText = document.getElementById('memo-input').value;
             const fullDateStr = getFormattedDate();
-            
             const ctx = exportCanvas.getContext('2d');
-            const imgW = video.videoWidth;
-            const imgH = imgW / 1.5;
-            
-            const canvasSize = imgW * 1.2; 
-            exportCanvas.width = canvasSize;
-            exportCanvas.height = canvasSize;
+            const canvasSize = 800;
 
             ctx.fillStyle = "#ffffff";
             ctx.fillRect(0, 0, canvasSize, canvasSize);
 
-            const xPadding = (canvasSize - imgW) / 2;
-            const yPaddingTop = canvasSize * 0.08; 
-            const imgTop = yPaddingTop;
+            const img = new Image();
+            img.onload = () => {
+                // レイアウト数値を厳密に固定
+                const photoW = canvasSize * 0.84; // 672px
+                const photoH = photoW / 1.5;      // 448px (正確に3:2)
+                const xPadding = (canvasSize - photoW) / 2; // 64px
+                const yPaddingTop = canvasSize * 0.08;      // 64px (上の余白)
 
-            ctx.drawImage(video, 0, (video.videoHeight - imgH) / 2, imgW, imgH, xPadding, imgTop, imgW, imgH);
+                // 写真を描画
+                ctx.drawImage(img, xPadding, yPaddingTop, photoW, photoH);
 
-            // 文字色の統一 (#5a5a5a)
-            ctx.fillStyle = "#5a5a5a";
-            
-            // メモの描画
-            ctx.font = `${canvasSize * 0.04}px sans-serif`;
-            ctx.fillText(memoText, xPadding * 1.2, imgTop + imgH + (canvasSize * 0.12));
-            
-            // 日時の描画（同じ色に設定）
-            ctx.font = `${canvasSize * 0.03}px sans-serif`;
-            ctx.fillText(fullDateStr, xPadding * 1.2, canvasSize - (canvasSize * 0.1));
+                // 文字（すべて #5a5a5a に統一）
+                ctx.fillStyle = "#5a5a5a";
+                ctx.font = "32px sans-serif";
+                ctx.fillText(memoText, xPadding * 1.2, yPaddingTop + photoH + 80);
+                
+                ctx.font = "24px sans-serif";
+                ctx.fillText(fullDateStr, xPadding * 1.2, canvasSize - 60);
 
-            const finalImage = exportCanvas.toDataURL('image/png');
-            const link = document.createElement('a');
-            link.download = `Log_${new Date().getTime()}.png`;
-            link.href = finalImage;
-            link.click();
+                const finalImage = exportCanvas.toDataURL('image/png');
+                const link = document.createElement('a');
+                link.download = `SOU_Log_${new Date().getTime()}.png`;
+                link.href = finalImage;
+                link.click();
 
-            const item = document.createElement('div');
-            item.className = 'log-item';
-            item.innerHTML = `<img src="${finalImage}">`;
-            logList.prepend(item);
+                const item = document.createElement('div');
+                item.className = 'log-item';
+                item.innerHTML = `<img src="${finalImage}">`;
+                logList.prepend(item);
 
-            memoArea.style.display = 'none';
-            document.getElementById('video-container').style.display = 'block';
-            shutterBtn.style.display = 'inline-block';
-            document.getElementById('memo-input').value = '';
+                memoArea.style.display = 'none';
+                document.getElementById('video-container').style.display = 'block';
+                shutterBtn.style.display = 'inline-block';
+                document.getElementById('memo-input').value = '';
+            };
+            img.src = capturedImageBlob;
         };
-// PWAの登録
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').then(() => {
-    console.log('Service Worker Registered');
-  });
-}
+
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').then(() => {
+                console.log('Service Worker Registered');
+            });
+        }
     </script>
 </body>
 </html>
