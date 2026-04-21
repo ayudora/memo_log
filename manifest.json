@@ -1,0 +1,21 @@
+{
+  "name": "SOU Production Log",
+  "short_name": "SOU",
+  "description": "制作過程を記録してnote投稿をサポートするアプリ",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#faf9f8",
+  "theme_color": "#d1cbc4",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
