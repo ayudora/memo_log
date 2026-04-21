@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SOU memo log</title>
+    <title>SOU Production Log</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#d1cbc4">
     <link rel="apple-touch-icon" href="icon-192.png">
@@ -28,6 +28,13 @@
         .btn-accent { background-color: var(--accent-color); color: white; }
         .btn-outline { background-color: transparent; border: 1px solid var(--accent-color); color: var(--accent-color); }
         
+        #crop-viewport {
+            position: relative; width: 100%; aspect-ratio: 3/2; 
+            overflow: hidden; border-radius: 8px; margin-bottom: 15px; 
+            background: #eee; cursor: move; touch-action: none;
+        }
+        #drag-img { position: absolute; top: 0; left: 0; pointer-events: none; }
+
         #log-list { max-width: 400px; margin: 30px auto; text-align: left; }
         .log-item { background: white; padding: 10px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
         .log-item img { width: 100%; border-radius: 4px; }
@@ -52,7 +59,11 @@
 
     <div id="memo-area" style="display:none;" class="card">
         <canvas id="export-canvas" width="800" height="800" style="display:none;"></canvas>
-        <img id="preview-img" style="width:100%; border-radius:4px; margin-bottom:10px;">
+        
+        <div id="crop-viewport">
+            <img id="drag-img">
+        </div>
+
         <textarea id="memo-input" placeholder="メモ…"></textarea>
         <button id="save-btn" class="btn btn-accent">保存</button>
         <button onclick="location.reload()" class="btn">やり直し</button>
@@ -64,7 +75,8 @@
         const video = document.getElementById('camera-view');
         const videoContainer = document.getElementById('video-container');
         const exportCanvas = document.getElementById('export-canvas');
-        const previewImg = document.getElementById('preview-img');
+        const dragImg = document.getElementById('drag-img');
+        const viewport = document.getElementById('crop-viewport');
         const memoArea = document.getElementById('memo-area');
         
         const startBtn = document.getElementById('start-btn');
@@ -75,8 +87,11 @@
         const saveBtn = document.getElementById('save-btn');
         const logList = document.getElementById('log-list');
 
-        let capturedImageBlob = null;
+        let originalImg = null;
         let currentStream = null;
+        let imgPos = { x: 0, y: 0 };
+        let isDragging = false;
+        let startPos = { x: 0, y: 0 };
 
         function getFormattedDate() {
             const now = new Date();
@@ -100,32 +115,64 @@
             fileBtn.style.display = 'inline-block';
         }
 
-        function processImage(source, isVideo = false) {
-            let sw, sh, sx, sy;
-            const vw = isVideo ? source.videoWidth : source.width;
-            const vh = isVideo ? source.videoHeight : source.height;
+        function initImage(source) {
+            originalImg = source;
+            const vpW = viewport.clientWidth;
+            const vpH = viewport.clientHeight;
+            const imgAspect = source.width / source.height;
+            const vpAspect = vpW / vpH;
 
-            if (vw / vh > 1.5) {
-                sh = vh; sw = vh * 1.5; sx = (vw - sw) / 2; sy = 0;
+            if (imgAspect > vpAspect) {
+                dragImg.style.height = '100%';
+                dragImg.style.width = 'auto';
+                setTimeout(() => {
+                    imgPos.x = (vpW - dragImg.clientWidth) / 2;
+                    imgPos.y = 0;
+                    updateImgStyle();
+                }, 10);
             } else {
-                sw = vw; sh = vw / 1.5; sx = 0; sy = (vh - sh) / 2;
+                dragImg.style.width = '100%';
+                dragImg.style.height = 'auto';
+                setTimeout(() => {
+                    imgPos.x = 0;
+                    imgPos.y = (vpH - dragImg.clientHeight) / 2;
+                    updateImgStyle();
+                }, 10);
             }
-
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = sw;
-            tempCanvas.height = sh;
-            tempCanvas.getContext('2d').drawImage(source, sx, sy, sw, sh, 0, 0, sw, sh);
-            
-            capturedImageBlob = tempCanvas.toDataURL('image/png');
-            previewImg.src = capturedImageBlob;
-
-            if(isVideo) stopCamera();
-
-            videoContainer.style.display = 'none';
-            startBtn.style.display = 'none';
-            fileBtn.style.display = 'none';
+            dragImg.src = source.src;
             memoArea.style.display = 'block';
         }
+
+        function updateImgStyle() {
+            dragImg.style.left = `${imgPos.x}px`;
+            dragImg.style.top = `${imgPos.y}px`;
+        }
+
+        viewport.onpointerdown = (e) => {
+            isDragging = true;
+            startPos = { x: e.clientX - imgPos.x, y: e.clientY - imgPos.y };
+            viewport.setPointerCapture(e.pointerId);
+        };
+
+        viewport.onpointermove = (e) => {
+            if (!isDragging) return;
+            imgPos.x = e.clientX - startPos.x;
+            imgPos.y = e.clientY - startPos.y;
+
+            const vpW = viewport.clientWidth;
+            const vpH = viewport.clientHeight;
+            const imgW = dragImg.clientWidth;
+            const imgH = dragImg.clientHeight;
+
+            if (imgPos.x > 0) imgPos.x = 0;
+            if (imgPos.y > 0) imgPos.y = 0;
+            if (imgPos.x < vpW - imgW) imgPos.x = vpW - imgW;
+            if (imgPos.y < vpH - imgH) imgPos.y = vpH - imgH;
+
+            updateImgStyle();
+        };
+
+        viewport.onpointerup = () => { isDragging = false; };
 
         startBtn.onclick = async () => {
             try {
@@ -138,15 +185,19 @@
                 fileBtn.style.display = 'none';
                 shutterBtn.style.display = 'inline-block';
                 stopBtn.style.display = 'inline-block';
-            } catch (err) {
-                alert("カメラを起動できませんでした。");
-            }
+            } catch (err) { alert("カメラを起動できませんでした。"); }
         };
 
         stopBtn.onclick = stopCamera;
 
         shutterBtn.onclick = () => {
-            processImage(video, true);
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            const img = new Image();
+            img.onload = () => { initImage(img); stopCamera(); };
+            img.src = canvas.toDataURL('image/png');
         };
 
         fileBtn.onclick = () => fileInput.click();
@@ -154,10 +205,10 @@
             const file = e.target.files[0];
             if (!file) return;
             const reader = new FileReader();
-            reader.onload = (event) => {
+            reader.onload = (ev) => {
                 const img = new Image();
-                img.onload = () => processImage(img, false);
-                img.src = event.target.result;
+                img.onload = () => { initImage(img); startBtn.style.display = 'none'; fileBtn.style.display = 'none'; };
+                img.src = ev.target.result;
             };
             reader.readAsDataURL(file);
         };
@@ -168,49 +219,47 @@
             const ctx = exportCanvas.getContext('2d');
             const canvasSize = 800;
 
+            const scale = originalImg.width / dragImg.clientWidth;
+            const sx = -imgPos.x * scale;
+            const sy = -imgPos.y * scale;
+            const sw = viewport.clientWidth * scale;
+            const sh = viewport.clientHeight * scale;
+
             ctx.fillStyle = "#ffffff";
             ctx.fillRect(0, 0, canvasSize, canvasSize);
 
-            const img = new Image();
-            img.onload = () => {
-                const photoW = canvasSize * 0.84;
-                const photoH = photoW / 1.5;
-                const xPadding = (canvasSize - photoW) / 2;
-                const yPaddingTop = canvasSize * 0.08;
+            const photoW = canvasSize * 0.84;
+            const photoH = photoW / 1.5;
+            const xPadding = (canvasSize - photoW) / 2;
+            const yPaddingTop = canvasSize * 0.08;
 
-                ctx.drawImage(img, xPadding, yPaddingTop, photoW, photoH);
-                ctx.fillStyle = "#5a5a5a";
-                ctx.font = "32px sans-serif";
-                ctx.fillText(memoText, xPadding * 1.2, yPaddingTop + photoH + 80);
-                ctx.font = "24px sans-serif";
-                ctx.fillText(fullDateStr, xPadding * 1.2, canvasSize - 60);
+            ctx.drawImage(originalImg, sx, sy, sw, sh, xPadding, yPaddingTop, photoW, photoH);
+            ctx.fillStyle = "#5a5a5a";
+            ctx.font = "32px sans-serif";
+            ctx.fillText(memoText, xPadding * 1.2, yPaddingTop + photoH + 80);
+            ctx.font = "24px sans-serif";
+            ctx.fillText(fullDateStr, xPadding * 1.2, canvasSize - 60);
 
-                const finalImage = exportCanvas.toDataURL('image/png');
-                const link = document.createElement('a');
-                link.download = `SOU_Log_${new Date().getTime()}.png`;
-                link.href = finalImage;
-                link.click();
+            const finalImage = exportCanvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.download = `SOU_Log_${new Date().getTime()}.png`;
+            link.href = finalImage;
+            link.click();
 
-                // ログを最新の1枚だけにする処理
-                const item = document.createElement('div');
-                item.className = 'log-item';
-                item.innerHTML = `<img src="${finalImage}">`;
-                
-                logList.innerHTML = ''; // 中身を空にする
-                logList.appendChild(item); // 1枚だけ追加する
+            const item = document.createElement('div');
+            item.className = 'log-item';
+            item.innerHTML = `<img src="${finalImage}">`;
+            logList.innerHTML = '';
+            logList.appendChild(item);
 
-                memoArea.style.display = 'none';
-                startBtn.style.display = 'inline-block';
-                fileBtn.style.display = 'inline-block';
-                document.getElementById('memo-input').value = '';
-            };
-            img.src = capturedImageBlob;
+            memoArea.style.display = 'none';
+            startBtn.style.display = 'inline-block';
+            fileBtn.style.display = 'inline-block';
+            document.getElementById('memo-input').value = '';
         };
 
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js').then(() => {
-                console.log('Service Worker Registered');
-            });
+            navigator.serviceWorker.register('sw.js').then(() => console.log('Service Worker Registered'));
         }
     </script>
 </body>
