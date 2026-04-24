@@ -58,12 +58,13 @@
     </div>
 
     <div id="action-buttons">
-        <button id="start-btn" class="btn btn-main">カメラを起動</button>
-        <button id="file-btn" class="btn btn-main">ファイルを選択</button>
+        <button id="start-btn" class="btn btn-main">カメラ</button>
+        <button id="file-btn" class="btn btn-main">ファイル</button>
+        <button id="text-only-btn" class="btn btn-main">テキストのみ</button>
         <input type="file" id="file-input" accept="image/*" style="display:none;">
         
         <button id="shutter-btn" class="btn btn-accent" style="display:none;">撮影する</button>
-        <button id="stop-btn" class="btn btn-outline" style="display:none;">カメラを停止</button>
+        <button id="stop-btn" class="btn btn-outline" style="display:none;">キャンセル</button>
     </div>
 
     <div id="memo-area" style="display:none;" class="card">
@@ -93,6 +94,7 @@
         
         const startBtn = document.getElementById('start-btn');
         const fileBtn = document.getElementById('file-btn');
+        const textOnlyBtn = document.getElementById('text-only-btn');
         const fileInput = document.getElementById('file-input');
         const shutterBtn = document.getElementById('shutter-btn');
         const stopBtn = document.getElementById('stop-btn');
@@ -105,6 +107,7 @@
         let isDragging = false;
         let startPos = { x: 0, y: 0 };
         let isManualMode = false; // ドラッグモードかどうか
+        let isTextOnlyMode = false; // テキストのみモードかどうか
 
         function getFormattedDate() {
             const now = new Date();
@@ -116,6 +119,18 @@
             return `${y}-${m}-${d} ${hh}:${mm}`;
         }
 
+        function hideMainButtons() {
+            startBtn.style.display = 'none';
+            fileBtn.style.display = 'none';
+            textOnlyBtn.style.display = 'none';
+        }
+
+        function showMainButtons() {
+            startBtn.style.display = 'inline-block';
+            fileBtn.style.display = 'inline-block';
+            textOnlyBtn.style.display = 'inline-block';
+        }
+
         function stopCamera() {
             if (currentStream) {
                 currentStream.getTracks().forEach(track => track.stop());
@@ -124,14 +139,23 @@
             videoContainer.style.display = 'none';
             shutterBtn.style.display = 'none';
             stopBtn.style.display = 'none';
-            startBtn.style.display = 'inline-block';
-            fileBtn.style.display = 'inline-block';
+            showMainButtons();
         }
+
+        // --- テキストのみモード ---
+        textOnlyBtn.onclick = () => {
+            isTextOnlyMode = true;
+            hideMainButtons();
+            viewport.style.display = 'none';
+            fixedPreview.style.display = 'none';
+            memoArea.style.display = 'block';
+            document.getElementById('memo-input').focus();
+        };
 
         // --- ドラッグ調整モードの初期化 (ファイル選択用) ---
         function initDragMode(source) {
             isManualMode = true;
-            originalImg = source;
+            isTextOnlyMode = false;
             viewport.style.display = 'block';
             fixedPreview.style.display = 'none';
 
@@ -192,10 +216,10 @@
         // --- カメラ撮影 (自動クロップ) ---
         shutterBtn.onclick = () => {
             isManualMode = false;
+            isTextOnlyMode = false;
             const vw = video.videoWidth;
             const vh = video.videoHeight;
             
-            // 3:2の中央を計算
             let sw, sh, sx, sy;
             if (vw / vh > 1.5) {
                 sh = vh; sw = vh * 1.5; sx = (vw - sw) / 2; sy = 0;
@@ -213,14 +237,12 @@
             fixedPreview.style.display = 'block';
             viewport.style.display = 'none';
             
-            // 保存用に元画像として保持
             const img = new Image();
             img.onload = () => { originalImg = img; };
             img.src = croppedData;
 
             stopCamera();
-            startBtn.style.display = 'none';
-            fileBtn.style.display = 'none';
+            hideMainButtons();
             memoArea.style.display = 'block';
         };
 
@@ -232,8 +254,7 @@
                 });
                 video.srcObject = currentStream;
                 videoContainer.style.display = 'block';
-                startBtn.style.display = 'none';
-                fileBtn.style.display = 'none';
+                hideMainButtons();
                 shutterBtn.style.display = 'inline-block';
                 stopBtn.style.display = 'inline-block';
             } catch (err) { alert("カメラを起動できませんでした。"); }
@@ -248,7 +269,11 @@
             const reader = new FileReader();
             reader.onload = (ev) => {
                 const img = new Image();
-                img.onload = () => { initDragMode(img); startBtn.style.display = 'none'; fileBtn.style.display = 'none'; };
+                img.onload = () => { 
+                    originalImg = img; 
+                    initDragMode(img); 
+                    hideMainButtons(); 
+                };
                 img.src = ev.target.result;
             };
             reader.readAsDataURL(file);
@@ -261,32 +286,55 @@
             const ctx = exportCanvas.getContext('2d');
             const canvasSize = 800;
 
-            let sx, sy, sw, sh;
-            if (isManualMode) {
-                const scale = originalImg.width / dragImg.clientWidth;
-                sx = -imgPos.x * scale;
-                sy = -imgPos.y * scale;
-                sw = viewport.clientWidth * scale;
-                sh = viewport.clientHeight * scale;
-            } else {
-                // カメラ撮影の場合は既にクロップ済み
-                sx = 0; sy = 0; sw = originalImg.width; sh = originalImg.height;
-            }
-
             ctx.fillStyle = "#ffffff";
             ctx.fillRect(0, 0, canvasSize, canvasSize);
-
-            const photoW = canvasSize * 0.84;
-            const photoH = photoW / 1.5;
-            const xPadding = (canvasSize - photoW) / 2;
-            const yPaddingTop = canvasSize * 0.08;
-
-            ctx.drawImage(originalImg, sx, sy, sw, sh, xPadding, yPaddingTop, photoW, photoH);
+            
             ctx.fillStyle = "#5a5a5a";
-            ctx.font = "32px sans-serif";
-            ctx.fillText(memoText, xPadding * 1.2, yPaddingTop + photoH + 80);
-            ctx.font = "24px sans-serif";
-            ctx.fillText(fullDateStr, xPadding * 1.2, canvasSize - 60);
+            
+            const xPadding = canvasSize * 0.08;
+            const lines = memoText.split('\n'); // 改行でテキストを分割
+
+            if (isTextOnlyMode) {
+                // --- テキストのみの描画 ---
+                ctx.font = "32px sans-serif";
+                let textY = canvasSize * 0.15; // 上部からスタート
+                lines.forEach(line => {
+                    ctx.fillText(line, xPadding * 1.2, textY);
+                    textY += 45; // 行間
+                });
+
+                ctx.font = "24px sans-serif";
+                ctx.fillText(fullDateStr, xPadding * 1.2, canvasSize - 60);
+                
+            } else {
+                // --- 画像＋テキストの描画 ---
+                let sx, sy, sw, sh;
+                if (isManualMode) {
+                    const scale = originalImg.width / dragImg.clientWidth;
+                    sx = -imgPos.x * scale;
+                    sy = -imgPos.y * scale;
+                    sw = viewport.clientWidth * scale;
+                    sh = viewport.clientHeight * scale;
+                } else {
+                    sx = 0; sy = 0; sw = originalImg.width; sh = originalImg.height;
+                }
+
+                const photoW = canvasSize * 0.84;
+                const photoH = photoW / 1.5;
+                const yPaddingTop = canvasSize * 0.08;
+
+                ctx.drawImage(originalImg, sx, sy, sw, sh, xPadding, yPaddingTop, photoW, photoH);
+                
+                ctx.font = "32px sans-serif";
+                let textY = yPaddingTop + photoH + 80;
+                lines.forEach(line => {
+                    ctx.fillText(line, xPadding * 1.2, textY);
+                    textY += 45; // 行間
+                });
+
+                ctx.font = "24px sans-serif";
+                ctx.fillText(fullDateStr, xPadding * 1.2, canvasSize - 60);
+            }
 
             const finalImage = exportCanvas.toDataURL('image/png');
             const link = document.createElement('a');
@@ -297,13 +345,12 @@
             const item = document.createElement('div');
             item.className = 'log-item';
             item.innerHTML = `<img src="${finalImage}">`;
-            logList.innerHTML = '';
-            logList.appendChild(item);
+            logList.insertBefore(item, logList.firstChild); // 最新を上に追加するように変更
 
             memoArea.style.display = 'none';
-            startBtn.style.display = 'inline-block';
-            fileBtn.style.display = 'inline-block';
+            showMainButtons();
             document.getElementById('memo-input').value = '';
+            isTextOnlyMode = false; // リセット
         };
 
         if ('serviceWorker' in navigator) {
